@@ -1,0 +1,58 @@
+@import "tailwindcss";
+@reference "tailwindcss";
+
+/* Font (optional, looks cleaner) */
+@font-face {
+  font-family: InterVar;
+  src: local("Inter");
+  font-display: swap;
+}
+:root {
+  --bg: #0b0b0c;
+  --panel: #111113;
+  --muted: #a1a1aa;
+  --text: #f5f5f7;
+  --primary: #c084fc; /* purple */
+  --primary-2: #60a5fa; /* blue */
+}
+
+html, body, :root {
+  height: 100%;
+  background:
+    radial-gradient(1200px 800px at 80% -10%, rgba(96,165,250,0.15), transparent 60%),
+    radial-gradient(800px 800px at 10% 10%, rgba(192,132,252,0.12), transparent 60%),
+    var(--bg);
+  color: var(--text);
+  font-family: InterVar, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+}
+
+/* Cards & panels */
+.card { @apply rounded-2xl border border-white/10 bg-[#121216]/80 backdrop-blur-sm shadow-sm; }
+
+/* Inputs */
+.input {
+  @apply w-full rounded-xl border border-white/10 bg-[#16161a] px-4 py-2 text-sm
+         text-zinc-200 placeholder:text-zinc-500 outline-none
+         transition-shadow focus:ring-2 focus:ring-purple-400/30;
+}
+select.input { appearance: none; }
+
+/* Buttons */
+.btn { @apply inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium transition-transform; }
+.btn-primary {
+  background: linear-gradient(180deg, var(--primary), var(--primary-2));
+  color: black;
+  @apply hover:scale-[1.01] active:scale-[0.99] shadow;
+}
+.btn-ghost { @apply text-zinc-300 hover:bg-white/5; }
+
+/* Labels & helpers */
+.label { @apply block text-xs text-zinc-400 mb-1; }
+.helper { @apply text-xs text-zinc-500; }
+
+.gradient-text {
+  background: linear-gradient(90deg, var(--primary), var(--primary-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
