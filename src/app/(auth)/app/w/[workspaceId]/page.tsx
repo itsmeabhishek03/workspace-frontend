@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth, useLogout } from "@/lib/auth/store";
+import { ChannelSidebar } from "@/components/ChannelSidebar";
 
 export default function WorkspacePage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
@@ -20,21 +21,18 @@ export default function WorkspacePage() {
           <h1 className="text-2xl font-semibold">Workspace</h1>
           <p className="text-sm text-zinc-400">ID: <span className="text-zinc-300">{workspaceId}</span></p>
         </div>
-        <button className="btn btn-ghost" onClick={logout}>Logout</button>
+        <div className="flex gap-2">
+          <Link className="btn btn-ghost" href={`/app/w/${workspaceId}/members`}>Members</Link>
+          <Link className="btn btn-ghost" href={`/app/w/${workspaceId}/invites`}>Invites</Link>
+          <button className="btn btn-ghost" onClick={logout}>Logout</button>
+        </div>
       </header>
 
       <div className="grid gap-6 md:grid-cols-[280px_1fr]">
-        <aside className="card p-4">
-          <div className="text-sm text-zinc-400 mb-2">Navigation</div>
-          <nav className="space-y-1">
-            <Link className="block rounded-lg px-3 py-2 hover:bg-white/5" href={`/app/w/${workspaceId}/invites`}>Invites (admin+)</Link>
-            <Link className="block rounded-lg px-3 py-2 hover:bg-white/5" href={`/app/w/${workspaceId}/members`}>Members (admin+)</Link>
-          </nav>
-        </aside>
-
+        <ChannelSidebar workspaceId={String(workspaceId)} />
         <main className="card p-6">
-          <div className="text-lg font-medium mb-2">Coming soon</div>
-          <p className="text-sm text-zinc-400">Channels & Messages UI will appear here.</p>
+          <div className="text-lg font-medium mb-2">Select a channel</div>
+          <p className="text-sm text-zinc-400">Choose a channel from the left to view messages.</p>
         </main>
       </div>
     </div>

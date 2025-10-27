@@ -1,5 +1,3 @@
-"use client";
-
 import { ReactNode, useEffect } from "react";
 import { create } from "zustand";
 import { getAccessToken, setAccessToken } from "@/lib/api/client";
@@ -58,9 +56,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useLogout() {
   const clear = useAuth(s => s.clear);
   const router = useRouter();
+
   return async () => {
     try { await apiLogout(); } catch {}
     clear();
-    router.replace("/login");
+    // schedule navigation safely after current render cycle
+    setTimeout(() => router.replace("/login"), 0);
   };
 }
+

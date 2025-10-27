@@ -17,8 +17,7 @@ export default function AppHome() {
   const doLogout = useLogout();
 
   useEffect(() => {
-    if (!ready) return;               // wait for auth bootstrap
-    if (!token) { router.replace("/login"); return; }
+    if (!ready) return;           
     (async () => {
       try {
         const res = await listMyWorkspaces();
