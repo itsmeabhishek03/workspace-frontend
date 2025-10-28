@@ -23,11 +23,22 @@ export function createWorkspace(data: { name: string }) {
 
 /* CHANNELS */
 export function listChannels(workspaceId: string) {
-  return api<{ channels: Array<{ id: string; name: string }> }>(`/api/${workspaceId}/channels`, "GET");
+  // unchanged; can still return { channels: [...] }
+  return api<{ channels: Array<{ id?: string; _id?: string; name: string }> }>(
+    `/api/${workspaceId}/channels`,
+    "GET"
+  );
 }
+
 export function createChannel(workspaceId: string, name: string) {
-  return api<{ id: string; name: string }>(`/api/${workspaceId}/channels`, "POST", { name });
+  // FIX: your backend returns { channel: { _id, name, ... } }
+  return api<{ channel: { _id: string; name: string } }>(
+    `/api/${workspaceId}/channels`,
+    "POST",
+    { name }
+  );
 }
+
 
 /* MESSAGES */
 export function listMessages(channelId: string, page = 1, limit = 30) {
