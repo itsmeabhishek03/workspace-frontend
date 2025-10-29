@@ -5,7 +5,8 @@ import { listMessages } from "@/lib/api/endpoints";
 import { MessageItem } from "./MessageItem";
 
 type RawMessage = {
-  id?: string; _id?: string;
+  id?: string;
+  _id?: string;
   body: string;
   userId?: string;
   user?: any;
@@ -14,47 +15,53 @@ type RawMessage = {
   deletedAt?: string | null;
 };
 
-type PageResp = {
-  messages: RawMessage[];
-  page: number;
-  totalPages: number;
-};
-
 const PAGE_SIZE = 30;
 
 export function MessageList({
   channelId,
-  refreshKey,       // bump this after send to refetch newest page
-  pendingMessages,  // optimistic messages array
+  refreshKey,
+  pendingMessages,
+  liveMessages, // NEW: real-time appended messages
+  onEditFromLive, // optional callbacks
+  onDeleteFromLive,
 }: {
   channelId: string;
   refreshKey: number;
   pendingMessages: RawMessage[];
+  liveMessages?: RawMessage[];
+  onEditFromLive?: (m: RawMessage) => void;
+  onDeleteFromLive?: (m: RawMessage) => void;
 }) {
-  const [pages, setPages] = useState<PageResp[]>([]);
+  const [messages, setMessages] = useState<RawMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState<number | null>(null);
+  const [oldestTs, setOldestTs] = useState<string | null>(null); // for `before` pagination
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // first load
+  // initial load (latest PAGE_SIZE)
   useEffect(() => {
     let alive = true;
     (async () => {
-      setLoading(true); setErr(null);
+      setLoading(true);
+      setErr(null);
       try {
-        const res = await listMessages(channelId, 1, PAGE_SIZE);
+        const res = await listMessages(channelId, 1, PAGE_SIZE); // your endpoint ignores page; we’ll adapt below
+        // If your backend now uses ?limit & ?before, change endpoints.ts accordingly and call `listMessagesBefore(channelId, {limit})`.
+        const arr = (res as any)?.messages ?? (Array.isArray(res) ? res : []);
+        // backend returns newest first; we want oldest→newest for display
+        const sorted = [...arr].sort(
+          (a: any, b: any) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
         if (!alive) return;
-        const tp = (res as any)?.totalPages ?? 1;
-        setPages([res as any]);
-        setPage(1);
-        setTotalPages(tp);
-        // scroll to bottom after initial load
+        setMessages(sorted);
+        const first = sorted[0]?.createdAt;
+        setOldestTs(first ? String(first) : null);
+        // scroll bottom
         setTimeout(() => {
           scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
         }, 0);
-      } catch (e:any) {
+      } catch (e: any) {
         if (!alive) return;
         setErr(e?.message || "Failed to load messages");
       } finally {
@@ -62,66 +69,108 @@ export function MessageList({
         setLoading(false);
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [channelId]);
 
-  // on refreshKey bump (after sending), refetch page 1 and replace it
+  // refresh “page 1” (newest), e.g., after sending
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         const res = await listMessages(channelId, 1, PAGE_SIZE);
+        const arr = (res as any)?.messages ?? (Array.isArray(res) ? res : []);
+        const sorted = [...arr].sort(
+          (a: any, b: any) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
         if (!alive) return;
-        setPages((prev) => {
-          const [, ...rest] = prev;
-          return [res as any, ...rest];
-        });
-        setPage(1);
+        setMessages(sorted);
+        const first = sorted[0]?.createdAt;
+        setOldestTs(first ? String(first) : null);
       } catch {}
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [refreshKey, channelId]);
 
-  async function loadMore() {
-    if (totalPages && page >= totalPages) return;
-    const next = page + 1;
+  async function loadOlder() {
+    if (!oldestTs) return;
     try {
-      const res = await listMessages(channelId, next, PAGE_SIZE);
-      setPages((prev) => [...prev, res as any]);
-      setPage(next);
-    } catch (e:any) {
-      setErr(e?.message || "Failed to load more");
+      // load messages before oldestTs
+      const base = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        before: String(oldestTs),
+      });
+      const res = await fetch(
+        `${
+          process.env.NEXT_PUBLIC_API_BASE_URL
+        }/api/channels/${channelId}/messages?${base.toString()}`,
+        {
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+      if (!res.ok) throw new Error("Failed to load older");
+      const data = await res.json();
+      const arr: RawMessage[] = data.messages ?? [];
+      if (arr.length === 0) {
+        setOldestTs(null);
+        return;
+      }
+      // prepend older (which come newest-first) -> sort to oldest→newest
+      const olderSorted = [...arr].sort(
+        (a: any, b: any) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+      setMessages((prev) => [...olderSorted, ...prev]);
+      const first = olderSorted[0]?.createdAt;
+      setOldestTs(first ? String(first) : null);
+    } catch (e: any) {
+      setErr(e?.message || "Failed to load older");
     }
   }
 
-  // flatten, dedupe, sort oldest → newest
+  // merge live + pending on render (without mutating base state)
   const items = useMemo(() => {
-    const map = new Map<string, RawMessage>();
-    for (const p of pages) {
-      for (const m of p.messages) {
-        const id = (m as any).id ?? (m as any)._id;
-        if (!id) continue;
-        map.set(id, m);
-      }
-    }
-    // attach pending optimistic (those have no real id → use temp)
-    const pendings = pendingMessages.map((m, i) => ({
+    const base = [...messages];
+    const pendings = (pendingMessages || []).map((m: any, i: number) => ({
       ...m,
-      id: `pending-${i}`,
+      id: m.id ?? m._id ?? `pending-${i}`,
       pending: true,
-    })) as any[];
-
-    const arr = [...map.values(), ...pendings];
-    arr.sort((a: any, b: any) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
-    return arr;
-  }, [pages, pendingMessages]);
+    }));
+    const lives = (liveMessages || []).map((m: any) => ({
+      ...m,
+      id: m.id ?? m._id,
+    }));
+    // merge: base + lives (dedupe by id) + pendings at end
+    const map = new Map<string, any>();
+    for (const m of base) {
+      const id = String((m as any).id ?? (m as any)._id);
+      map.set(id, m);
+    }
+    for (const m of lives) {
+      const id = String((m as any).id ?? (m as any)._id);
+      const existing = map.get(id);
+      if (!existing) map.set(id, m);
+      else map.set(id, { ...existing, ...m }); // allow edits/deletes to override
+    }
+    const merged = [...map.values(), ...pendings];
+    merged.sort(
+      (a: any, b: any) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+    return merged;
+  }, [messages, pendingMessages, liveMessages]);
 
   return (
     <div className="h-[calc(100dvh-220px)] card p-0 overflow-hidden">
       <div className="flex items-center justify-between p-3 border-b border-white/10">
         <div className="text-sm text-zinc-400">Messages</div>
-        {totalPages && page < totalPages ? (
-          <button className="btn btn-ghost text-xs" onClick={loadMore}>
+        {oldestTs ? (
+          <button className="btn btn-ghost text-xs" onClick={loadOlder}>
             Load older
           </button>
         ) : (
@@ -133,17 +182,20 @@ export function MessageList({
         {loading && (
           <div className="space-y-2">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-16 rounded-xl bg-white/5 animate-pulse" />
+              <div
+                key={i}
+                className="h-16 rounded-xl bg-white/5 animate-pulse"
+              />
             ))}
           </div>
         )}
         {err && <p className="text-sm text-red-400">{err}</p>}
-
         {!loading && items.length === 0 && (
-          <div className="text-sm text-zinc-400 text-center py-10">No messages yet. Say hello 👋</div>
+          <div className="text-sm text-zinc-400 text-center py-10">
+            No messages yet. Say hello 👋
+          </div>
         )}
-
-        {items.map((m:any) => (
+        {items.map((m: any) => (
           <MessageItem key={(m as any).id ?? (m as any)._id} m={m} />
         ))}
       </div>

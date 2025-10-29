@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { listChannels, createChannel } from "@/lib/api/endpoints";
 
 type Channel = { id?: string; _id?: string; name: string };
-
 function normalize(ch: Channel): { id: string; name: string } | null {
   const id = (ch as any).id ?? (ch as any)._id;
   const name = (ch as any).name;
@@ -14,18 +14,26 @@ function normalize(ch: Channel): { id: string; name: string } | null {
 }
 
 export function ChannelSidebar({ workspaceId }: { workspaceId: string }) {
-  const [channels, setChannels] = useState<Array<{ id: string; name: string }>>([]);
+  const [channels, setChannels] = useState<Array<{ id: string; name: string }>>(
+    []
+  );
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
+  const pathname = usePathname();
+  const router = useRouter();
 
   useEffect(() => {
     (async () => {
       try {
         const res = await listChannels(workspaceId);
-        const arr: Channel[] = (res as any)?.channels ?? (Array.isArray(res) ? res : []);
-        const normalized = arr.map(normalize).filter(Boolean) as Array<{ id: string; name: string }>;
+        const arr: Channel[] =
+          (res as any)?.channels ?? (Array.isArray(res) ? res : []);
+        const normalized = arr.map(normalize).filter(Boolean) as Array<{
+          id: string;
+          name: string;
+        }>;
         setChannels(normalized);
       } catch (e: any) {
         setErr(e?.message || "Failed to load channels");
@@ -42,22 +50,28 @@ export function ChannelSidebar({ workspaceId }: { workspaceId: string }) {
     setErr(null);
     try {
       const res = await createChannel(workspaceId, newName.trim());
-      // res.channel is { _id, name, ... }
-      const normalized = normalize(res.channel as any);
+      const normalized = normalize((res as any).channel ?? (res as any));
       if (normalized) {
         setChannels((cs) => [...cs, normalized]);
+        setNewName("");
+        document
+          .getElementById("create-channel-dialog")
+          ?.classList.add("hidden");
+        // auto-navigate to the new channel
+        router.push(
+          `/app/w/${workspaceId}/c/${encodeURIComponent(normalized.id)}`
+        );
       } else {
-        // fallback: refetch if shape is not as expected
-        try {
-          const r = await listChannels(workspaceId);
-          const arr: Channel[] = (r as any)?.channels ?? (Array.isArray(r) ? r : []);
-          const mapped = arr.map(normalize).filter(Boolean) as Array<{ id: string; name: string }>;
-          setChannels(mapped);
-        } catch {}
+        // fallback refetch
+        const r = await listChannels(workspaceId);
+        const arr: Channel[] =
+          (r as any)?.channels ?? (Array.isArray(r) ? r : []);
+        const mapped = arr.map(normalize).filter(Boolean) as Array<{
+          id: string;
+          name: string;
+        }>;
+        setChannels(mapped);
       }
-      setNewName("");
-      // optionally close the inline dialog
-      document.getElementById("create-channel-dialog")?.classList.add("hidden");
     } catch (e: any) {
       setErr(e?.message || "Failed to create channel");
     } finally {
@@ -71,7 +85,11 @@ export function ChannelSidebar({ workspaceId }: { workspaceId: string }) {
         <div className="text-sm text-zinc-400">Channels</div>
         <button
           className="btn btn-ghost text-xs"
-          onClick={() => document.getElementById("create-channel-dialog")?.classList.toggle("hidden")}
+          onClick={() =>
+            document
+              .getElementById("create-channel-dialog")
+              ?.classList.toggle("hidden")
+          }
         >
           + New
         </button>
@@ -89,16 +107,24 @@ export function ChannelSidebar({ workspaceId }: { workspaceId: string }) {
         <p className="text-sm text-zinc-400">No channels yet.</p>
       ) : (
         <nav className="space-y-1">
-          {channels.map((c) => (
-            <Link
-              key={c.id}
-              href={`/app/w/${workspaceId}/c/${encodeURIComponent(c.id)}`}
-              className="block rounded-lg px-3 py-2 hover:bg-white/5"
-              title={`#${c.name}`}
-            >
-              #{c.name}
-            </Link>
-          ))}
+          {channels.map((c) => {
+            const href = `/app/w/${workspaceId}/c/${encodeURIComponent(c.id)}`;
+            const active = pathname?.startsWith(href);
+            return (
+              <Link
+                key={c.id}
+                href={href}
+                className={`block rounded-lg px-3 py-2 transition-colors ${
+                  active
+                    ? "bg-white/10 text-white"
+                    : "hover:bg-white/5 text-zinc-200"
+                }`}
+                title={`#${c.name}`}
+              >
+                #{c.name}
+              </Link>
+            );
+          })}
         </nav>
       )}
 
@@ -118,7 +144,11 @@ export function ChannelSidebar({ workspaceId }: { workspaceId: string }) {
             <button
               type="button"
               className="btn btn-ghost"
-              onClick={() => document.getElementById("create-channel-dialog")?.classList.add("hidden")}
+              onClick={() =>
+                document
+                  .getElementById("create-channel-dialog")
+                  ?.classList.add("hidden")
+              }
             >
               Cancel
             </button>
