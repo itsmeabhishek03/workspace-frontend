@@ -111,6 +111,7 @@ export default function ChannelMessagesPage() {
         refreshKey={refreshKey}
         pendingMessages={pending}
         liveMessages={live}
+        token={token} // 👈 add this
       />
 
       <MessageComposer

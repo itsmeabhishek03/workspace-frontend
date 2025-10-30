@@ -57,7 +57,6 @@ export function ChannelSidebar({ workspaceId }: { workspaceId: string }) {
         document
           .getElementById("create-channel-dialog")
           ?.classList.add("hidden");
-        // auto-navigate to the new channel
         router.push(
           `/app/w/${workspaceId}/c/${encodeURIComponent(normalized.id)}`
         );

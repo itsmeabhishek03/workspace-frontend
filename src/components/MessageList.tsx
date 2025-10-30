@@ -98,38 +98,35 @@ export function MessageList({
 
   async function loadOlder() {
     if (!oldestTs) return;
+
     try {
-      // load messages before oldestTs
-      const base = new URLSearchParams({
-        limit: String(PAGE_SIZE),
-        before: String(oldestTs),
-      });
-      const res = await fetch(
-        `${
-          process.env.NEXT_PUBLIC_API_BASE_URL
-        }/api/channels/${channelId}/messages?${base.toString()}`,
-        {
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-      if (!res.ok) throw new Error("Failed to load older");
-      const data = await res.json();
-      const arr: RawMessage[] = data.messages ?? [];
-      if (arr.length === 0) {
+      // Fetch messages before the current oldest timestamp
+      const limit = PAGE_SIZE;
+      const before = String(oldestTs);
+
+      // ✅ Use your new listMessages() API helper
+      const res = await listMessages(channelId, 1, limit);
+      const data = res?.messages ?? [];
+
+      if (data.length === 0) {
         setOldestTs(null);
         return;
       }
-      // prepend older (which come newest-first) -> sort to oldest→newest
-      const olderSorted = [...arr].sort(
-        (a: any, b: any) =>
+
+      // Sort messages oldest → newest
+      const olderSorted = [...data].sort(
+        (a, b) =>
           new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
       );
+
+      // Prepend older messages
       setMessages((prev) => [...olderSorted, ...prev]);
+
+      // Update oldest timestamp for next pagination
       const first = olderSorted[0]?.createdAt;
       setOldestTs(first ? String(first) : null);
     } catch (e: any) {
-      setErr(e?.message || "Failed to load older");
+      setErr(e?.message || "Failed to load older messages");
     }
   }
 

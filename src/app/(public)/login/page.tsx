@@ -1,23 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { login } from "@/lib/api/endpoints";
 import { useAuth } from "@/lib/auth/store";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("test@example.com");
-  const [password, setPassword] = useState("123456");
+  const [email, setEmail] = useState("abhi@gmail.com");
+  const [password, setPassword] = useState("password");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const setToken = useAuth(s => s.setToken);
-  const setUser  = useAuth(s => s.setUser);
+  const { token, ready } = useAuth((s) => ({ token: s.token, ready: s.ready }));
+  const setToken = useAuth((s) => s.setToken);
+  const setUser = useAuth((s) => s.setUser);
   const router = useRouter();
+
+  useEffect(() => {
+    if (token) {
+      router.push("/app");
+    }
+  }, [token]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true); setErr(null);
+    setLoading(true);
+    setErr(null);
     try {
       const res = await login({ email, password });
       setToken(res.accessToken);
@@ -39,11 +47,23 @@ export default function LoginPage() {
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
             <label className="label">Email</label>
-            <input className="input" value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="you@example.com" />
+            <input
+              className="input"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              type="email"
+              placeholder="you@example.com"
+            />
           </div>
           <div>
             <label className="label">Password</label>
-            <input className="input" value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder="••••••" />
+            <input
+              className="input"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              type="password"
+              placeholder="••••••"
+            />
           </div>
           {err && <p className="text-sm text-red-400">{err}</p>}
           <button className="btn btn-primary w-full" disabled={loading}>
@@ -52,7 +72,10 @@ export default function LoginPage() {
         </form>
 
         <div className="mt-5 text-sm text-zinc-400">
-          New here? <Link className="underline" href="/register">Create an account</Link>
+          New here?{" "}
+          <Link className="underline" href="/register">
+            Create an account
+          </Link>
         </div>
       </div>
     </main>

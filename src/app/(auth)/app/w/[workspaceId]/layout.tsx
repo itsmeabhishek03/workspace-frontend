@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuth } from "@/lib/auth/store";
+import { useAuth, useLogout } from "@/lib/auth/store";
 import { useParams, useRouter } from "next/navigation";
 import { ChannelSidebar } from "@/components/ChannelSidebar";
 import Link from "next/link";
@@ -13,6 +13,7 @@ export default function WorkspaceLayout({
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const { token, ready } = useAuth((s) => ({ token: s.token, ready: s.ready }));
   const router = useRouter();
+  const doLogout = useLogout();
 
   if (!ready) {
     return (
@@ -48,6 +49,9 @@ export default function WorkspaceLayout({
           >
             Invites
           </Link>
+          <button className="btn btn-ghost" onClick={doLogout}>
+            Logout
+          </button>
         </div>
       </header>
 
