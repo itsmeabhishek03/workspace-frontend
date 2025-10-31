@@ -16,7 +16,6 @@ type MemberRow = {
 
 export default function MembersPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
-  const { token, ready } = useAuth((s) => ({ token: s.token, ready: s.ready }));
   const router = useRouter();
 
   // table state
@@ -33,10 +32,23 @@ export default function MembersPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  // find my role (from the list)
-  const myUserId = useAuth.getState().user?.id ?? ""; // may be empty if backend didn't send user on login
-  const me = useMemo(() => rows.find((r) => r.userId === myUserId), [rows, myUserId]);
-  const ownerCount = useMemo(() => rows.filter((r) => r.role === "owner").length, [rows]);
+  const { token, ready, user } = useAuth((s) => ({
+    token: s.token,
+    ready: s.ready,
+    user: s.user,
+  }));
+
+  const myUserId = user?.id ? String(user.id) : "";
+  const me = useMemo(
+    () => rows.find((r) => String(r.userId) === myUserId),
+    [rows, myUserId]
+  );
+  const myRole: Role | null = me?.role ?? null;
+
+  const ownerCount = useMemo(
+    () => rows.filter((r) => r.role === "owner").length,
+    [rows]
+  );
 
   // fetch members
   useEffect(() => {
@@ -73,7 +85,7 @@ export default function MembersPage() {
   }, [token, ready, workspaceId, page, limit, search, role, sort, router]);
 
   // admin guard — your backend already protects this route; this UI is extra
-  const myRole: Role | null = me?.role ?? null;
+  //  const myRole: Role | null = me?.role ?? null;
   const isAdminPlus = myRole === "admin" || myRole === "owner";
 
   // client-side permission helpers (mirror your rules best-effort)
@@ -91,7 +103,8 @@ export default function MembersPage() {
       if (ownerCount <= 1) return false;
     }
     // demoting another owner: must not remove last owner
-    if (target.role === "owner" && to !== "owner" && ownerCount <= 1) return false;
+    if (target.role === "owner" && to !== "owner" && ownerCount <= 1)
+      return false;
     return true;
   }
 
@@ -100,7 +113,12 @@ export default function MembersPage() {
     if (myRole === "admin") return target.role === "member"; // admins can remove members only
     // owner can remove anyone except last owner (and prevent self if last owner)
     if (target.role === "owner" && ownerCount <= 1) return false;
-    if (target.userId === myUserId && target.role === "owner" && ownerCount <= 1) return false;
+    if (
+      target.userId === myUserId &&
+      target.role === "owner" &&
+      ownerCount <= 1
+    )
+      return false;
     return true;
   }
 
@@ -112,7 +130,9 @@ export default function MembersPage() {
 
     // optimistic update
     const prev = [...rows];
-    setRows(rows.map(r => r.userId === target.userId ? { ...r, role: to } : r));
+    setRows(
+      rows.map((r) => (r.userId === target.userId ? { ...r, role: to } : r))
+    );
     try {
       await changeRole(String(workspaceId), target.userId, to);
       // refetch to ensure counts/guards (like ownerCount) are correct
@@ -140,7 +160,7 @@ export default function MembersPage() {
     if (!ok) return;
 
     const prev = [...rows];
-    setRows(rows.filter(r => r.userId !== target.userId));
+    setRows(rows.filter((r) => r.userId !== target.userId));
     try {
       await removeMember(String(workspaceId), target.userId);
       // if we removed someone relevant to ownerCount, you may want to refetch:
@@ -179,7 +199,11 @@ export default function MembersPage() {
         </div>
         <div className="text-sm">
           <span className="text-zinc-400">You: </span>
-          {myRole ? <RoleBadge role={myRole} /> : <span className="text-zinc-400">unknown</span>}
+          {myRole ? (
+            <RoleBadge role={myRole} />
+          ) : (
+            <span className="text-zinc-400">unknown</span>
+          )}
         </div>
       </div>
 
@@ -191,7 +215,10 @@ export default function MembersPage() {
             className="input"
             placeholder="Name or email"
             value={search}
-            onChange={(e) => { setPage(1); setSearch(e.target.value); }}
+            onChange={(e) => {
+              setPage(1);
+              setSearch(e.target.value);
+            }}
           />
         </div>
         <div>
@@ -199,7 +226,10 @@ export default function MembersPage() {
           <select
             className="input"
             value={role}
-            onChange={(e) => { setPage(1); setRole(e.target.value as any); }}
+            onChange={(e) => {
+              setPage(1);
+              setRole(e.target.value as any);
+            }}
           >
             <option value="">All</option>
             <option value="owner">owner</option>
@@ -212,7 +242,10 @@ export default function MembersPage() {
           <select
             className="input"
             value={sort}
-            onChange={(e) => { setPage(1); setSort(e.target.value as any); }}
+            onChange={(e) => {
+              setPage(1);
+              setSort(e.target.value as any);
+            }}
           >
             <option value="name">name (A→Z)</option>
             <option value="createdAt">joined (newest)</option>
@@ -233,7 +266,10 @@ export default function MembersPage() {
         {loading ? (
           <div className="p-4 space-y-2">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-14 rounded-xl bg-white/5 animate-pulse" />
+              <div
+                key={i}
+                className="h-14 rounded-xl bg-white/5 animate-pulse"
+              />
             ))}
           </div>
         ) : err ? (
@@ -243,20 +279,34 @@ export default function MembersPage() {
         ) : (
           <div className="divide-y divide-white/10">
             {rows.map((m) => (
-              <div key={m.userId} className="grid grid-cols-12 items-center px-4 py-3">
+              <div
+                key={m.userId}
+                className="grid grid-cols-12 items-center px-4 py-3"
+              >
                 {/* User */}
                 <div className="col-span-4 flex items-center gap-3">
                   <div className="h-9 w-9 rounded-lg bg-white/10 flex items-center justify-center text-sm">
-                    {(m.user.name || m.user.email).split(" ").map(s=>s[0]).slice(0,2).join("").toUpperCase()}
+                    {(m.user.name || m.user.email)
+                      .split(" ")
+                      .map((s) => s[0])
+                      .slice(0, 2)
+                      .join("")
+                      .toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">{m.user.name || "—"}</div>
-                    <div className="truncate text-xs text-zinc-500">{m.user.email}</div>
+                    <div className="truncate text-sm font-medium">
+                      {m.user.name || "—"}
+                    </div>
+                    <div className="truncate text-xs text-zinc-500">
+                      {m.user.email}
+                    </div>
                   </div>
                 </div>
 
                 {/* Email (short) */}
-                <div className="col-span-2 truncate text-sm">{m.user.email}</div>
+                <div className="col-span-2 truncate text-sm">
+                  {m.user.email}
+                </div>
 
                 {/* Role */}
                 <div className="col-span-2">
@@ -272,12 +322,18 @@ export default function MembersPage() {
                 <div className="col-span-2">
                   <div className="flex items-center justify-end gap-2">
                     {/* Role change buttons */}
-                    {(["member","admin","owner"] as Role[]).map((r) => (
+                    {(["member", "admin", "owner"] as Role[]).map((r) => (
                       <button
                         key={r}
                         className="btn btn-ghost text-xs px-2 py-1"
                         disabled={!canChangeRole(m, r) || m.role === r}
-                        title={!canChangeRole(m, r) ? "Not allowed" : (m.role === r ? "Already this role" : `Make ${r}`)}
+                        title={
+                          !canChangeRole(m, r)
+                            ? "Not allowed"
+                            : m.role === r
+                            ? "Already this role"
+                            : `Make ${r}`
+                        }
                         onClick={() => onChangeRole(m, r)}
                       >
                         {r[0].toUpperCase()}
@@ -309,21 +365,28 @@ export default function MembersPage() {
           <select
             className="input w-28"
             value={limit}
-            onChange={(e) => { setPage(1); setLimit(parseInt(e.target.value, 10)); }}
+            onChange={(e) => {
+              setPage(1);
+              setLimit(parseInt(e.target.value, 10));
+            }}
           >
-            {[10,20,30,50,100].map(n => <option key={n} value={n}>{n} / page</option>)}
+            {[10, 20, 30, 50, 100].map((n) => (
+              <option key={n} value={n}>
+                {n} / page
+              </option>
+            ))}
           </select>
           <button
             className="btn btn-ghost"
             disabled={page <= 1}
-            onClick={() => setPage(p => Math.max(1, p - 1))}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
           >
             Prev
           </button>
           <button
             className="btn btn-ghost"
             disabled={page >= totalPages}
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
           >
             Next
           </button>
