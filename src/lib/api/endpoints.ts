@@ -41,11 +41,17 @@ export function createChannel(workspaceId: string, name: string) {
 
 
 /* MESSAGES */
-export function listMessages(channelId: string, page = 1, limit = 30) {
+export async function listMessages(channelId: string, limit = 30, before?: string) {
+  const params = new URLSearchParams();
+  params.append("limit", String(limit));
+  if (before) params.append("before", before);
+
   return api<{ messages: Array<any>; page: number; totalPages: number }>(
-    `/api/channels/${channelId}/messages?page=${page}&limit=${limit}`, "GET"
+    `/api/channels/${channelId}/messages?${params.toString()}`, "GET"
   );
 }
+
+
 export function postMessage(channelId: string, body: string) {
   return api<{ id: string }>(`/api/channels/${channelId}/messages`, "POST", { body });
 }

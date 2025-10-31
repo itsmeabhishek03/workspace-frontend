@@ -45,19 +45,19 @@ export function MessageList({
       setLoading(true);
       setErr(null);
       try {
-        const res = await listMessages(channelId, 1, PAGE_SIZE); // your endpoint ignores page; we’ll adapt below
-        // If your backend now uses ?limit & ?before, change endpoints.ts accordingly and call `listMessagesBefore(channelId, {limit})`.
-        const arr = (res as any)?.messages ?? (Array.isArray(res) ? res : []);
-        // backend returns newest first; we want oldest→newest for display
+        const res = await listMessages(channelId, PAGE_SIZE);
+        const arr = res?.messages ?? [];
         const sorted = [...arr].sort(
-          (a: any, b: any) =>
+          (a, b) =>
             new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
         );
+
         if (!alive) return;
         setMessages(sorted);
         const first = sorted[0]?.createdAt;
         setOldestTs(first ? String(first) : null);
-        // scroll bottom
+
+        // Scroll bottom
         setTimeout(() => {
           scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
         }, 0);
@@ -79,7 +79,7 @@ export function MessageList({
     let alive = true;
     (async () => {
       try {
-        const res = await listMessages(channelId, 1, PAGE_SIZE);
+        const res = await listMessages(channelId, 1);
         const arr = (res as any)?.messages ?? (Array.isArray(res) ? res : []);
         const sorted = [...arr].sort(
           (a: any, b: any) =>
@@ -100,16 +100,14 @@ export function MessageList({
     if (!oldestTs) return;
 
     try {
-      // Fetch messages before the current oldest timestamp
       const limit = PAGE_SIZE;
       const before = String(oldestTs);
 
-      // ✅ Use your new listMessages() API helper
-      const res = await listMessages(channelId, 1, limit);
+      const res = await listMessages(channelId, limit, before);
       const data = res?.messages ?? [];
 
       if (data.length === 0) {
-        setOldestTs(null);
+        setOldestTs(null); // No more older messages
         return;
       }
 
@@ -163,7 +161,7 @@ export function MessageList({
   }, [messages, pendingMessages, liveMessages]);
 
   return (
-    <div className="h-[calc(100dvh-220px)] card p-0 overflow-hidden">
+    <div className="h-[calc(100dvh-220px)] card p-0 overflow-x-auto">
       <div className="flex items-center justify-between p-3 border-b border-white/10">
         <div className="text-sm text-zinc-400">Messages</div>
         {oldestTs ? (
