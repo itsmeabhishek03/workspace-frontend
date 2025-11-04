@@ -51,6 +51,12 @@ export async function listMessages(channelId: string, limit = 30, before?: strin
   );
 }
 
+export function editMessage(messageId: string, body: string) {
+  return api<{ message: any }>(`/api/channels/messages/${messageId}`, "PATCH", { body });
+}
+export function deleteMessage(messageId: string) {
+  return api<{ message: any }>(`/api/channels/messages/${messageId}`, "DELETE");
+}
 
 export function postMessage(channelId: string, body: string) {
   return api<{ id: string }>(`/api/channels/${channelId}/messages`, "POST", { body });

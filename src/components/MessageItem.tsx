@@ -1,72 +1,117 @@
+// src/components/MessageItem.tsx
 "use client";
 
-type MsgUser = { id?: string; _id?: string; name?: string; email?: string; avatarUrl?: string | null };
-type Message = {
-  id?: string;
-  _id?: string;
-  body: string;
-  userId?: string;
-  user?: MsgUser;              
-  createdAt?: string | Date;
-  editedAt?: string | Date | null;
-  deletedAt?: string | Date | null;
-  pending?: boolean;            
-  failed?: boolean;        
-};
+import { useState } from "react";
+import { useAuth } from "@/lib/auth/store";
+import { editMessage, deleteMessage } from "@/lib/api/endpoints";
 
-function timeAgo(ts?: string | Date | null) {
-  if (!ts) return "";
-  const d = typeof ts === "string" ? new Date(ts) : ts;
-  const diff = Date.now() - d.getTime();
-  const s = Math.floor(diff / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
-  const days = Math.floor(h / 24);
-  if (days < 7) return `${days}d`;
-  return d.toLocaleString();
+function initials(name?: string, email?: string) {
+  if (name) {
+    const parts = name.trim().split(/\s+/);
+    return parts
+      .slice(0, 2)
+      .map((p) => p[0])
+      .join("")
+      .toUpperCase();
+  }
+  if (email) return email[0]?.toUpperCase() || "U";
+  return "U";
 }
 
-export function MessageItem({ m }: { m: Message }) {
-  const id = (m as any).id ?? (m as any)._id;
-  const user = m.user;
-  const initials =
-    (user?.name || user?.email || "U")
-      .split(" ")
-      .map((p) => p[0]?.toUpperCase())
-      .slice(0, 2)
-      .join("");
+export function MessageItem({ m }: { m: any }) {
+  const { user } = useAuth((s) => ({ user: s.user }));
+  const myId = user?.id;
+  const isMine = String(m.user?.id || m.userId) === String(myId);
 
-  const soft = m.deletedAt ? "line-through text-zinc-500" : "";
-  const pendingBadge = m.pending ? "opacity-60" : "";
-  const failedBadge = m.failed ? "border-red-500/40" : "border-white/10";
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(m.body);
+
+  async function onSave() {
+    if (!text.trim()) return;
+    try {
+      await editMessage(String(m._id || m.id), text.trim());
+      setEditing(false);
+    } catch (e: any) {
+      alert(e?.message || "Failed to edit");
+    }
+  }
+
+  async function onDelete() {
+    const ok = confirm("Delete this message?");
+    if (!ok) return;
+    try {
+      await deleteMessage(String(m._id || m.id));
+    } catch (e: any) {
+      alert(e?.message || "Failed to delete");
+    }
+  }
+
+  const deleted = !!m.deletedAt;
 
   return (
-    <div key={id} className={`flex gap-3 items-start p-3 rounded-xl border ${failedBadge} bg-[#111114]/60`}>
-      {/* avatar */}
-      <div className="flex h-9 w-9 shrink-0 select-none items-center justify-center rounded-lg bg-white/10 text-sm">
-        {initials}
+    <div className="flex gap-3 items-start p-3 rounded-xl border border-white/10 bg-[#111114]/60">
+      <div className="h-8 w-8 rounded-lg bg-white/10 flex items-center justify-center text-xs">
+        {initials(m.user?.name, m.user?.email)}
       </div>
-
-      {/* content */}
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <div className="text-sm font-medium">
-            {user?.name || user?.email || "User"}
+        <div className="flex items-center justify-between gap-3">
+          <div className="truncate">
+            <span className="text-sm font-medium">
+              {m.user?.name || m.user?.email || "Unknown"}
+            </span>
+            <span className="ml-2 text-xs text-zinc-500">
+              {new Date(m.createdAt).toLocaleString()}
+              {m.editedAt && " • edited"}
+            </span>
           </div>
-          <div className="text-[11px] text-zinc-500">
-            {timeAgo(m.createdAt)}
-            {m.editedAt && <span className="ml-1 italic">(edited)</span>}
-            {m.deletedAt && <span className="ml-1 italic text-red-300">(deleted)</span>}
+          {/* controls (show for my messages; admins can still act, but server enforces) */}
+          {!deleted && isMine && (
+            <div className="flex gap-1">
+              {!editing && (
+                <button
+                  className="btn btn-ghost text-xs px-2 py-1"
+                  onClick={() => setEditing(true)}
+                >
+                  Edit
+                </button>
+              )}
+              <button
+                className="btn btn-ghost text-xs px-2 py-1"
+                onClick={onDelete}
+              >
+                Delete
+              </button>
+            </div>
+          )}
+        </div>
+
+        {deleted ? (
+          <div className="text-sm italic text-zinc-500">Message deleted</div>
+        ) : editing ? (
+          <div className="mt-2 flex gap-2">
+            <textarea
+              className="input min-h-[40px]"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+            />
+            <button className="btn btn-primary" onClick={onSave}>
+              Save
+            </button>
+            <button
+              className="btn btn-ghost"
+              onClick={() => {
+                setText(m.body);
+                setEditing(false);
+              }}
+            >
+              Cancel
+            </button>
           </div>
-          {m.pending && <span className="text-[11px] text-zinc-500 ml-2">sending…</span>}
-          {m.failed && <span className="text-[11px] text-red-400 ml-2">failed</span>}
-        </div>
-        <div className={`mt-1 whitespace-pre-wrap break-words text-sm ${soft} ${pendingBadge}`}>
-          {m.body}
-        </div>
+        ) : (
+          <div className="text-sm text-zinc-300 whitespace-pre-wrap break-words">
+            {m.body}
+          </div>
+        )}
       </div>
     </div>
   );

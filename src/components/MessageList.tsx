@@ -79,7 +79,7 @@ export function MessageList({
     let alive = true;
     (async () => {
       try {
-        const res = await listMessages(channelId, 1);
+        const res = await listMessages(channelId, PAGE_SIZE);
         const arr = (res as any)?.messages ?? (Array.isArray(res) ? res : []);
         const sorted = [...arr].sort(
           (a: any, b: any) =>
