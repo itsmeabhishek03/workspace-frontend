@@ -3,14 +3,19 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { listChannels, createChannel } from "@/lib/api/endpoints";
+import {
+  listChannels,
+  createChannel,
+  updateChannel,
+  deleteChannel,
+} from "@/lib/api/endpoints";
+import { Pencil, Trash2, Check, X } from "lucide-react";
 
 type Channel = { id?: string; _id?: string; name: string };
 function normalize(ch: Channel): { id: string; name: string } | null {
-  const id = (ch as any).id ?? (ch as any)._id;
-  const name = (ch as any).name;
-  if (!id || !name) return null;
-  return { id, name };
+  const id = ch.id ?? ch._id;
+  if (!id || !ch.name) return null;
+  return { id, name: ch.name };
 }
 
 export function ChannelSidebar({ workspaceId }: { workspaceId: string }) {
@@ -21,6 +26,8 @@ export function ChannelSidebar({ workspaceId }: { workspaceId: string }) {
   const [err, setErr] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
   const pathname = usePathname();
   const router = useRouter();
 
@@ -28,8 +35,7 @@ export function ChannelSidebar({ workspaceId }: { workspaceId: string }) {
     (async () => {
       try {
         const res = await listChannels(workspaceId);
-        const arr: Channel[] =
-          (res as any)?.channels ?? (Array.isArray(res) ? res : []);
+        const arr: Channel[] = (res as any)?.channels ?? [];
         const normalized = arr.map(normalize).filter(Boolean) as Array<{
           id: string;
           name: string;
@@ -43,38 +49,51 @@ export function ChannelSidebar({ workspaceId }: { workspaceId: string }) {
     })();
   }, [workspaceId]);
 
+  const refreshChannels = async () => {
+    const res = await listChannels(workspaceId);
+    const arr: Channel[] = (res as any)?.channels ?? [];
+    const normalized = arr.map(normalize).filter(Boolean) as Array<{
+      id: string;
+      name: string;
+    }>;
+    setChannels(normalized);
+  };
+
   const onCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
     setCreating(true);
-    setErr(null);
     try {
-      const res = await createChannel(workspaceId, newName.trim());
-      const normalized = normalize((res as any).channel ?? (res as any));
-      if (normalized) {
-        setChannels((cs) => [...cs, normalized]);
-        setNewName("");
-        document
-          .getElementById("create-channel-dialog")
-          ?.classList.add("hidden");
-        router.push(
-          `/app/w/${workspaceId}/c/${encodeURIComponent(normalized.id)}`
-        );
-      } else {
-        // fallback refetch
-        const r = await listChannels(workspaceId);
-        const arr: Channel[] =
-          (r as any)?.channels ?? (Array.isArray(r) ? r : []);
-        const mapped = arr.map(normalize).filter(Boolean) as Array<{
-          id: string;
-          name: string;
-        }>;
-        setChannels(mapped);
-      }
+      await createChannel(workspaceId, newName.trim());
+      await refreshChannels();
+      setNewName("");
+      document.getElementById("create-channel-dialog")?.classList.add("hidden");
     } catch (e: any) {
       setErr(e?.message || "Failed to create channel");
     } finally {
       setCreating(false);
+    }
+  };
+
+  const onEdit = async (channelId: string) => {
+    if (!editName.trim()) return;
+    try {
+      await updateChannel(workspaceId, channelId, { name: editName.trim() });
+      await refreshChannels();
+      setEditingId(null);
+      setEditName("");
+    } catch (err) {
+      console.error("Failed to update channel:", err);
+    }
+  };
+
+  const onDelete = async (channelId: string) => {
+    if (!confirm("Are you sure you want to delete this channel?")) return;
+    try {
+      await deleteChannel(workspaceId, channelId);
+      await refreshChannels();
+    } catch (err) {
+      console.error("Failed to delete channel:", err);
     }
   };
 
@@ -83,7 +102,7 @@ export function ChannelSidebar({ workspaceId }: { workspaceId: string }) {
       <div className="flex items-center justify-between mb-3">
         <div className="text-sm text-zinc-400">Channels</div>
         <button
-          className="btn btn-ghost text-xs"
+          className="btn btn-ghost text-xs text-white hover:text-gray-300"
           onClick={() =>
             document
               .getElementById("create-channel-dialog")
@@ -109,25 +128,71 @@ export function ChannelSidebar({ workspaceId }: { workspaceId: string }) {
           {channels.map((c) => {
             const href = `/app/w/${workspaceId}/c/${encodeURIComponent(c.id)}`;
             const active = pathname?.startsWith(href);
+            const isEditing = editingId === c.id;
+
             return (
-              <Link
+              <div
                 key={c.id}
-                href={href}
-                className={`block rounded-lg px-3 py-2 transition-colors ${
-                  active
-                    ? "bg-white/10 text-white"
-                    : "hover:bg-white/5 text-zinc-200"
-                }`}
-                title={`#${c.name}`}
+                className="flex items-center justify-between group"
               >
-                #{c.name}
-              </Link>
+                {isEditing ? (
+                  <div className="flex items-center gap-2 w-full">
+                    <input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="input flex-1 text-sm"
+                    />
+                    <button
+                      onClick={() => onEdit(c.id)}
+                      className="btn btn-ghost text-white hover:text-green-400"
+                    >
+                      <Check className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="btn btn-ghost text-white hover:text-red-400"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <Link
+                      href={href}
+                      className={`block flex-1 rounded-lg px-3 py-2 transition-colors ${
+                        active
+                          ? "bg-white/10 text-white"
+                          : "hover:bg-white/5 text-zinc-200"
+                      }`}
+                    >
+                      #{c.name}
+                    </Link>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        className="btn btn-ghost text-white hover:text-gray-300 p-1"
+                        onClick={() => {
+                          setEditingId(c.id);
+                          setEditName(c.name);
+                        }}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        className="btn btn-ghost text-white hover:text-gray-300 p-1"
+                        onClick={() => onDelete(c.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             );
           })}
         </nav>
       )}
 
-      {/* Create Channel Dialog (simple inline) */}
+      {/* Create Channel Dialog */}
       <div id="create-channel-dialog" className="hidden mt-4">
         <form onSubmit={onCreate} className="space-y-2">
           <input
@@ -142,7 +207,7 @@ export function ChannelSidebar({ workspaceId }: { workspaceId: string }) {
             </button>
             <button
               type="button"
-              className="btn btn-ghost"
+              className="btn btn-ghost text-white hover:text-gray-300"
               onClick={() =>
                 document
                   .getElementById("create-channel-dialog")

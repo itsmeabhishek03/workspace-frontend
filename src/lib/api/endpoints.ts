@@ -21,6 +21,26 @@ export function createWorkspace(data: { name: string }) {
   );
 }
 
+export function updateWorkspace(
+  workspaceId: string,
+  data: { name?: string; slug?: string }
+) {
+  return api<{ workspace: { id: string; name: string; slug?: string } }>(
+    `/api/workspaces/${workspaceId}`,
+    "PATCH",
+    data
+  );
+}
+
+// 🗑️ Delete Workspace
+export function deleteWorkspace(workspaceId: string) {
+  return api<{ ok: boolean }>(
+    `/api/workspaces/${workspaceId}`,
+    "DELETE"
+  );
+}
+
+
 /* CHANNELS */
 export function listChannels(workspaceId: string) {
   // unchanged; can still return { channels: [...] }
@@ -31,7 +51,6 @@ export function listChannels(workspaceId: string) {
 }
 
 export function createChannel(workspaceId: string, name: string) {
-  // FIX: your backend returns { channel: { _id, name, ... } }
   return api<{ channel: { _id: string; name: string } }>(
     `/api/${workspaceId}/channels`,
     "POST",
@@ -39,6 +58,20 @@ export function createChannel(workspaceId: string, name: string) {
   );
 }
 
+export function updateChannel(workspaceId: string, channelId: string, data: { name?: string }) {
+  return api<{ channel: { id: string; name: string } }>(
+    `/api/${workspaceId}/channels/${channelId}`,
+    "PATCH",
+    data
+  );
+}
+
+export function deleteChannel(workspaceId: string, channelId: string) {
+  return api<{ ok: boolean }>(
+    `/api/${workspaceId}/channels/${channelId}`,
+    "DELETE"
+  );
+}
 
 /* MESSAGES */
 export async function listMessages(channelId: string, limit = 30, before?: string) {
